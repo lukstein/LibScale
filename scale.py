@@ -2,6 +2,7 @@ import numpy as np
 import csv 
 import sys,imp,os,time,msvcrt
 import argparse
+from itertools import compress
 
 ### arg parser
 parser = argparse.ArgumentParser(description='--- A Python UL DEWI program to scale libs and convert them to gwcs ---')
@@ -36,18 +37,57 @@ elif arg_results.Latitude == None :
     b_latitude = False
 
 ### variables
-ifile = arg_results.ifile[:-4] # removes .lib extension
+ifile = arg_results.ifile
+ifile_short = arg_results.ifile[:-4] # removes .lib extension
 percentage = float(arg_results.percentage)
 
 if AutoParentName:
-    ofile = '{}_{:.0f}'.format(ifile,percentage)
+    ofile = '{}_{:.0f}'.format(ifile_short,percentage)
 
 ### functions
 
 def __now__():                    
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
+def convert_to_np(data, row_length):
+    nparr = np.zeros([ len(data), row_length])
+    for (line_count,line) in enumerate(data):
+        temp_line = np.array(line.split())
+        temp_line = temp_line.astype(float)             
+        nparr[line_count] = temp_line
+    return nparr
+
 def scale_lib(ifile, ofile, percentage):
+    with open(ifile, 'rb') as f:
+        lines = f.readlines()
+        lines = [x.strip() for x in lines] 
+
+        stationmeta = lines[0]
+        arraydim = np.array(lines[1].split())
+        rlengths = np.array(lines[2].split()) #[m]
+        heights  = np.array(lines[3].split()) #[m]
+        sectors  = int(arraydim[2])
+                
+        data_block = lines[4:]
+        data = {}
+        #data["f"] = np.zeros([len(rlengths), sectors])
+        #data["A"] = np.zeros(arraydim.astype(int))
+        #data["k"] = np.zeros(arraydim.astype(int))
+        
+        # frequencies
+        data["f"] = convert_to_np(data_block[::len(heights)*2+1],sectors) 
+        # create indices of A, k value
+        mask = np.ones(len(data_block), dtype=bool)
+        mask[::len(heights)*2+1] = False
+        
+        AK = convert_to_np(list(compress(data_block,mask)),sectors)
+        data["A"]= AK[::2]
+        data["k"]= AK[1::2]
+        
+        print data["k"]
+
+        print len(data_block)
+        f.close() 
     return 0
 
 def export_gwc(ifile, ofile):
@@ -56,7 +96,7 @@ def export_gwc(ifile, ofile):
 def extrapolate_gwc(ifile, ofile, latitude):
     return 0
 
-### main program
+### main program: call above defined functions
 
 scale_lib(ifile, ofile, percentage)
 
