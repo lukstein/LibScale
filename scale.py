@@ -50,44 +50,46 @@ def __now__():
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
 def convert_to_np(data, row_length):
+    """Converts 2D-lists to numpy array."""
     nparr = np.zeros([ len(data), row_length])
     for (line_count,line) in enumerate(data):
         temp_line = np.array(line.split())
         temp_line = temp_line.astype(float)             
         nparr[line_count] = temp_line
     return nparr
-
-def scale_lib(ifile, ofile, percentage):
+    
+def open_lib(ifile):
+    """Opens lib with name ifile and returns stationmeta, arraydim, rlengths, heights, sectors, data."""
     with open(ifile, 'rb') as f:
         lines = f.readlines()
-        lines = [x.strip() for x in lines] 
-
-        stationmeta = lines[0]
-        arraydim = np.array(lines[1].split())
-        rlengths = np.array(lines[2].split()) #[m]
-        heights  = np.array(lines[3].split()) #[m]
-        sectors  = int(arraydim[2])
-                
-        data_block = lines[4:]
+        lines = [x.strip() for x in lines]
         data = {}
-        #data["f"] = np.zeros([len(rlengths), sectors])
-        #data["A"] = np.zeros(arraydim.astype(int))
-        #data["k"] = np.zeros(arraydim.astype(int))
+
+        data["meta"] = lines[0]
+        data["dim"]  = np.array(lines[1].split()).astype(int)
+        data["R"]    = np.array(lines[2].split()).astype(float)  #[m]
+        data["H"]    = np.array(lines[3].split()).astype(float)  #[m]
+        data["sect"] = int(data["dim"][2])
         
+        data_block = lines[4:]
+
         # frequencies
-        data["f"] = convert_to_np(data_block[::len(heights)*2+1],sectors) 
-        # create indices of A, k value
-        mask = np.ones(len(data_block), dtype=bool)
-        mask[::len(heights)*2+1] = False
+        data["f"] = convert_to_np(data_block[::len(data["H"])*2+1],data["sect"]) 
         
-        AK = convert_to_np(list(compress(data_block,mask)),sectors)
+        # create masks for A, k value
+        mask = np.ones(len(data_block), dtype=bool)
+        mask[::len(data["H"])*2+1] = False
+                
+        AK = convert_to_np(list(compress(data_block,mask)),data["sect"])
+        
         data["A"]= AK[::2]
         data["k"]= AK[1::2]
-        
-        print data["k"]
-
-        print len(data_block)
         f.close() 
+    return data
+
+def scale_lib(ifile, ofile, percentage):
+    data = open_lib(ifile)
+    print data        
     return 0
 
 def export_gwc(ifile, ofile):
