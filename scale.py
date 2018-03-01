@@ -82,14 +82,40 @@ def open_lib(ifile):
                 
         AK = convert_to_np(list(compress(data_block,mask)),data["sect"])
         
-        data["A"]= AK[::2]
-        data["k"]= AK[1::2]
+        data["A"] = AK[::2]
+        data["k"] = AK[1::2]
         f.close() 
     return data
 
+def write_lib(ofile,data):
+    """Writes libfile to filename "ofile" using the dictionary data.
+    Keys of data are:
+    meta: metadata
+    dim:  dimensions
+    R:    roughness lengths
+    H:    heights
+    sect: nb. of sectors
+    f:    frequencies
+    A:    Weibull A
+    k:    Weibull k"""
+    with open(ofile+".lib",'wb') as f:
+        f.write(data["meta"]+"\n")
+        f.write("\t".join(map(str, data["dim"]))+"\n")
+        f.write("\t".join('%.3f' %x for x in data["R"])+"\n")
+        f.write("\t".join('%.1f' %x for x in data["H"])+"\n")
+        for i in range(data["dim"][0]):
+            f.write("\t".join(map(str, data["f"][i]))+"\n")
+            for j in range(data["dim"][1]):
+                f.write("\t".join('%.2f' %x for x in data["A"][i*data["dim"][1]+j])+"\n")
+                f.write("\t".join('%.2f' %x for x in data["k"][i*data["dim"][1]+j])+"\n")
+                #f.write(str(i*data["dim"][1]+j)+" A: "+"\t".join('%.2f' %x for x in data["A"][i*data["dim"][1]+j])+"\n")
+                #f.write(str(i*data["dim"][1]+j)+" k: "+"\t".join('%.2f' %x for x in data["k"][i*data["dim"][1]+j])+"\n")
+        f.close()
+    
 def scale_lib(ifile, ofile, percentage):
     data = open_lib(ifile)
-    print data        
+    data["A"] = data["A"] * (percentage/100.0)**(1.0/3.0)
+    write_lib(ofile,data)
     return 0
 
 def export_gwc(ifile, ofile):
