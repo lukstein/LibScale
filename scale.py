@@ -3,6 +3,8 @@ import csv
 import sys,imp,os,time,msvcrt
 import argparse
 from itertools import compress
+import xml.etree.ElementTree as ET
+
 
 ### arg parser
 parser = argparse.ArgumentParser(description='--- A Python UL DEWI program to scale libs and convert them to gwcs ---')
@@ -116,9 +118,53 @@ def scale_lib(ifile, ofile, percentage):
     data = open_lib(ifile)
     data["A"] = data["A"] * (percentage/100.0)**(1.0/3.0)
     write_lib(ofile,data)
-    return 0
+    return data
 
-def export_gwc(ifile, ofile):
+def export_gwc(data, ofile):
+    """Exports the data object to a .gwc file (XML) following the version number FormatVersion="01.01.0002"""
+    
+    # strings for file
+    header = '<?xml version="1.0" encoding="UTF-8"?>\n'
+    
+    provenance = """<Provenance>
+    <ProfileModelParameters>
+        <RveaConfiguration FormatVersion="02.00.0001">
+            <RveaParameter ID="PROFILEMODEL" Value="Classic" IsDefault="1"/>
+            <RveaParameter ID="FRACSTAC" Value="0.6" IsDefault="1"/>
+            <RveaParameter ID="RMSINVSTA" Value="0.007" IsDefault="1"/>
+            <RveaParameter ID="RMSINVUNSTA" Value="0.04" IsDefault="1"/>
+            <RveaParameter ID="OFSLANDTA" Value="-40" IsDefault="1"/>
+            <RveaParameter ID="EABLLAND" Value="400" IsDefault="1"/>
+            <RveaParameter ID="FRACSTACWAT" Value="0.4" IsDefault="1"/>
+            <RveaParameter ID="RMSINVSTASEA" Value="0.002" IsDefault="1"/>
+            <RveaParameter ID="RMSINVUNSTASEA" Value="0.02" IsDefault="1"/>
+            <RveaParameter ID="OFSWATERTA" Value="-8" IsDefault="1"/>
+            <RveaParameter ID="EABLSEA" Value="333" IsDefault="1"/>
+            <RveaParameter ID="LMTEABL" Value="0.5" IsDefault="1"/>
+            <RveaParameter ID="STABFAC" Value="0.002" IsDefault="1"/>
+            <RveaParameter ID="RMSLAND" Value="100" IsDefault="1"/>
+            <RveaParameter ID="RMSWATER" Value="30" IsDefault="1"/>
+            <RveaParameter ID="OFSLAND" Value="-40" IsDefault="1"/>
+            <RveaParameter ID="OFSWATER" Value="-8" IsDefault="1"/>
+            <RveaParameter ID="FACGEOH" Value="1" IsDefault="1"/>
+            <RveaParameter ID="FACGEOSEA" Value="1" IsDefault="1"/>
+            <RveaParameter ID="POWERLAW" Value="1.5" IsDefault="1"/>
+        </RveaConfiguration>
+    </ProfileModelParameters>
+</Provenance>
+"""
+    closing = "</RveaGeneralisedMeanWindClimate>\n"
+    
+    meta = '<RveaGeneralisedMeanWindClimate FormatVersion="01.01.0002" LowestCompatibleFormatVersion="01.00.0000" SavingComponent="Rvea0182 version 1.14.0026" \
+    Description="%s" CountOfSectors="%0.f" SectorOneCentreAngle="0" CountOfReferenceHeights="%0.f" CountOfReferenceRoughnessLengths="%0.f">\n' % \
+        (data["meta"],        data["dim"][2],                                                data["dim"][1],                         data["dim"][0])
+    
+    with open(ofile+".gwc",'wb') as f:
+        f.write(header)
+        f.write(meta)
+        f.write(provenance)   
+        f.write(closing)
+        f.close() 
     return 0
 
 def extrapolate_gwc(ifile, ofile, latitude):
@@ -126,9 +172,9 @@ def extrapolate_gwc(ifile, ofile, latitude):
 
 ### main program: call above defined functions
 
-scale_lib(ifile, ofile, percentage)
+data_scaled = scale_lib(ifile, ofile, percentage)
 
-export_gwc(ifile, ofile)
+export_gwc(data_scaled, ofile)
 
 if b_latitude:
     extrapolate_gwc(ifile, ofile, latitude)
