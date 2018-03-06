@@ -5,7 +5,6 @@ import argparse
 from itertools import compress
 import xml.etree.ElementTree as ET
 
-
 ### arg parser
 parser = argparse.ArgumentParser(description='--- A Python UL DEWI program to scale libs and convert them to gwcs ---')
 
@@ -45,7 +44,8 @@ percentage = float(arg_results.percentage)
 
 if AutoParentName:
     ofile = '{}_{:.0f}'.format(ifile_short,percentage)
-
+else:
+    ofile = filename
 ### functions
 
 def __now__():                    
@@ -122,8 +122,38 @@ def scale_lib(ifile, ofile, percentage):
 
 def export_gwc(data, ofile):
     """Exports the data object to a .gwc file (XML) following the version number FormatVersion="01.01.0002"""
+    # functions
+    def writeWindRose(RoughnessLengthNumber, RoughnessLength, ReferenceHeightNumber, ReferenceHeight, CountOfSectors, f, A, k):
+        """Writes <WindAtlasWeibullWindRose ... > ... </WindAtlasWeibullWindRose> to string.
+        Needs as input:
+        - RoughnessLengthNumber
+        - RoughnessLength
+        - ReferenceHeightNumber
+        - ReferenceHeight
+        - CountOfSectors
+        - A [12 sectors]
+        - k [12 sectors]
+        - f [12 sectors]
+        """
+        output = ""
+        output += '<WindAtlasWeibullWindRose RoughnessLengthNumber="%d" RoughnessLength="%.3f" ReferenceHeightNumber="%d" ReferenceHeight="%.1f" FormatVersion="1.0" CountOfSectors="%d">\n' \
+                                             %(RoughnessLengthNumber,   RoughnessLength,        ReferenceHeightNumber,     ReferenceHeight,                            CountOfSectors)
+
+        if ((len(f)+len(A)+len(k))/3 != CountOfSectors):
+            print "Error: Count of sectors does not correspond to length of A, k, and f data."
+        
+        # WeibullWind entries
+        SectorWidthDegrees = 360/CountOfSectors        
+        
+        for i in range(CountOfSectors):
+            output += '<WeibullWind Index="%d" CentreAngleDegrees="%d" SectorWidthDegrees="%d" SectorFrequency="%.6E" WeibullA="%.2f" WeibullK="%.2f"/>\n' \
+                    %(                   i+1,      i*SectorWidthDegrees, SectorWidthDegrees,                  f[i]/100.0,          A[i],     k[i])
+                    
+        output += '</WindAtlasWeibullWindRose>\n'
+        
+        return output
     
-    # strings for file
+################# strings for file
     header = '<?xml version="1.0" encoding="UTF-8"?>\n'
     
     provenance = """<Provenance>
@@ -159,25 +189,40 @@ def export_gwc(data, ofile):
     Description="%s" CountOfSectors="%0.f" SectorOneCentreAngle="0" CountOfReferenceHeights="%0.f" CountOfReferenceRoughnessLengths="%0.f">\n' % \
         (data["meta"],        data["dim"][2],                                                data["dim"][1],                         data["dim"][0])
     
+##### write to file
     with open(ofile+".gwc",'wb') as f:
         f.write(header)
         f.write(meta)
-        f.write(provenance)   
-        f.write(closing)
+        f.write(provenance)
+        for (r, rlength) in enumerate(data["R"]):
+            for (h, height) in enumerate(data["H"]):
+                f.write(writeWindRose(r+1, rlength, h+1, height, data["sect"], data["f"][r], data["A"][r*data["dim"][1]+h], data["k"][r*data["dim"][1]+h]))
+        f.write(closing)                                                                
         f.close() 
+        
     return 0
 
 def extrapolate_gwc(ifile, ofile, latitude):
     return 0
 
-### main program: call above defined functions
-
+######## main program: call above defined functions  ################
+print "\n############### Scale LIB ###################\n"
+print "Scales %s with %.2f%% into %s.lib and %s.gwc.\n" % (ifile, percentage, ofile, ofile)
+print "Make sure used input LIB is properly formatted as now format checks are performed!"
 data_scaled = scale_lib(ifile, ofile, percentage)
+
+# normalize frequencies to 100
+sums = np.sum(data_scaled["f"], axis=1)
+for (i, su) in enumerate(sums):
+    data_scaled["f"][i] = data_scaled["f"][i]*100.0/su
 
 export_gwc(data_scaled, ofile)
 
+           
 if b_latitude:
     extrapolate_gwc(ifile, ofile, latitude)
+
+print "\n############### End Scale LIB ###############\n"
 
 # end
 
