@@ -15,10 +15,10 @@ parser.add_argument('percentage', action='store',default=False,\
                     help="Percentage to scale the Lib. Value between [0..200]")
 
 parser.add_argument('--OutputFilename','-o', action='store', dest='Ofile', default='AUTOPARENTNAME',\
-                    help='Name of the Output file without filetype extension. Default value is "AUTOPARENTNAME" (e.g.: derived directly from input file and percentage), otherwise specify')
+                    help='Optional: Name of the Output file without filetype extension. Default value is "AUTOPARENTNAME" (e.g.: derived directly from input file and percentage), otherwise specify')
 
 parser.add_argument('--Extrapolate','-e', action='store', dest='Latitude',\
-                    help='Latitude of desired location in decimal degrees.')
+                    help='Not implemented yet: Latitude of desired location in decimal degrees. Only used for extrapolation.')
 
 
 arg_results, arg_errors = parser.parse_known_args()
@@ -146,7 +146,7 @@ def export_gwc(data, ofile):
         SectorWidthDegrees = 360/CountOfSectors        
         
         for i in range(CountOfSectors):
-            output += '<WeibullWind Index="%d" CentreAngleDegrees="%d" SectorWidthDegrees="%d" SectorFrequency="%.6E" WeibullA="%.2f" WeibullK="%.2f"/>\n' \
+            output += '<WeibullWind Index="%d" CentreAngleDegrees="%d" SectorWidthDegrees="%d" SectorFrequency="%.6E" WeibullA="%.3f" WeibullK="%.3f"/>\n' \
                     %(                   i+1,      i*SectorWidthDegrees, SectorWidthDegrees,                  f[i]/100.0,          A[i],     k[i])
                     
         output += '</WindAtlasWeibullWindRose>\n'
@@ -207,8 +207,8 @@ def extrapolate_gwc(ifile, ofile, latitude):
 
 ######## main program: call above defined functions  ################
 print "\n############### Scale LIB ###################\n"
+print "Make sure used input LIB is properly formatted as no format checks are performed!\n"
 print "Scales %s with %.2f%% into %s.lib and %s.gwc.\n" % (ifile, percentage, ofile, ofile)
-print "Make sure used input LIB is properly formatted as now format checks are performed!"
 data_scaled = scale_lib(ifile, ofile, percentage)
 
 # normalize frequencies to 100
@@ -220,6 +220,7 @@ export_gwc(data_scaled, ofile)
 
            
 if b_latitude:
+    print ("Note: You selected extrapolation of the gwc. This feature is not yet implemented.")
     extrapolate_gwc(ifile, ofile, latitude)
 
 print "\n############### End Scale LIB ###############\n"
