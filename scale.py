@@ -15,7 +15,7 @@ parser.add_argument('percentage', action='store',default=False,\
                     help="Percentage to scale the Lib. Value between [0..200]")
 
 parser.add_argument('--OutputFilename','-o', action='store', dest='Ofile', default='AUTOPARENTNAME',\
-                    help='Optional: Name of the Output file without filetype extension. Default value is "AUTOPARENTNAME" (e.g.: derived directly from input file and percentage), otherwise specify')
+                    help='Name of the Output file without filetype extension. Default value is "AUTOPARENTNAME" (e.g.: derived directly from input file and percentage), otherwise specify')
 
 parser.add_argument('--Extrapolate','-e', action='store', dest='Latitude',\
                     help='Not implemented yet: Latitude of desired location in decimal degrees. Only used for extrapolation.')
