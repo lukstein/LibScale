@@ -43,7 +43,7 @@ ifile_short = arg_results.ifile[:-4] # removes .lib extension
 percentage = float(arg_results.percentage)
 
 if AutoParentName:
-    ofile = '{}_{:.0f}'.format(ifile_short,percentage)
+    ofile = '{}_{:04.0f}'.format(ifile_short,percentage*10)
 else:
     ofile = filename
 ### functions
