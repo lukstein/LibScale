@@ -1,4 +1,4 @@
-# -*- coding: utf-8 -*-
+# -*- coding: latin_1 -*-
 
 import numpy as np
 import csv 
@@ -6,6 +6,7 @@ import sys,imp,os,time,msvcrt
 import argparse
 from itertools import compress
 import xml.etree.ElementTree as ET
+import string
 
 ### arg parser
 parser = argparse.ArgumentParser(description='--- A Python UL DEWI program to scale libs and convert them to gwcs ---')
@@ -48,8 +49,8 @@ if AutoParentName:
     ofile = '{}_{:04.0f}'.format(ifile_short,percentage*10)
 else:
     ofile = filename
+    
 ### functions
-
 def __now__():                    
     return time.strftime("%Y-%m-%d %H:%M:%S", time.localtime())
 
@@ -70,6 +71,8 @@ def open_lib(ifile):
         data = {}
 
         data["meta"] = lines[0]
+        printable = set(string.printable)
+        data["meta"] = filter(lambda x: x in printable, data["meta"])
         data["dim"]  = np.array(lines[1].split()).astype(int)
         data["R"]    = np.array(lines[2].split()).astype(float)  #[m]
         data["H"]    = np.array(lines[3].split()).astype(float)  #[m]
@@ -226,6 +229,7 @@ if b_latitude:
     extrapolate_gwc(ifile, ofile, latitude)
 
 print "\n############### End Scale LIB ###############\n"
+
 
 # end
 
