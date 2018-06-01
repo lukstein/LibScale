@@ -69,7 +69,7 @@ def open_lib(ifile):
         lines = f.readlines()
         lines = [x.strip() for x in lines]
         data = {}
-
+        lines = filter(lambda x: x.strip(), lines)
         data["meta"] = lines[0]
         printable = set(string.printable)
         data["meta"] = filter(lambda x: x in printable, data["meta"])
@@ -79,7 +79,7 @@ def open_lib(ifile):
         data["sect"] = int(data["dim"][2])
         
         data_block = lines[4:]
-
+        
         # frequencies
         data["f"] = convert_to_np(data_block[::len(data["H"])*2+1],data["sect"]) 
         
