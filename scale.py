@@ -1,5 +1,8 @@
 # -*- coding: latin_1 -*-
 
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
 import csv 
 import sys,imp,os,time,msvcrt
@@ -7,6 +10,11 @@ import argparse
 from itertools import compress
 import xml.etree.ElementTree as ET
 import string
+from ctypes import *
+import re
+
+### import DLL
+the_DLL = CDLL("Rvea0284nc-64") #This is therefore expected to be in the current execution path
 
 ### arg parser
 parser = argparse.ArgumentParser(description='--- A Python UL DEWI program to scale libs and convert them to gwcs ---')
@@ -35,7 +43,7 @@ elif arg_results.Ofile.lower() == 'autoparentname' :
 
 ###################### Arguments - Extrapolate
 if arg_results.Latitude != None:
-    latitude = arg_results.Latitude
+    latitude = float(arg_results.Latitude)
     b_latitude = True
 elif arg_results.Latitude == None :
     b_latitude = False
@@ -69,17 +77,19 @@ def open_lib(ifile):
         lines = f.readlines()
         lines = [x.strip() for x in lines]
         data = {}
-
+        lines = filter(lambda x: x.strip(), lines)
+        
         data["meta"] = lines[0]
         printable = set(string.printable)
         data["meta"] = filter(lambda x: x in printable, data["meta"])
+        
         data["dim"]  = np.array(lines[1].split()).astype(int)
         data["R"]    = np.array(lines[2].split()).astype(float)  #[m]
         data["H"]    = np.array(lines[3].split()).astype(float)  #[m]
         data["sect"] = int(data["dim"][2])
         
         data_block = lines[4:]
-
+        
         # frequencies
         data["f"] = convert_to_np(data_block[::len(data["H"])*2+1],data["sect"]) 
         
@@ -125,6 +135,133 @@ def scale_lib(ifile, ofile, percentage):
     write_lib(ofile,data)
     return data
 
+################# ATLAS CLASS DEFINITION FROM WASP USED FOR EXTRAPOLATION WITH DLL
+
+class class_atlas:
+
+    def __init__(self):
+    
+        c_float_roughness_lengths = c_float * 5
+        self.__standard_roughness = c_float_roughness_lengths()
+    
+        c_float_heights = c_float * 5
+        self.__standard_height = c_float_heights()
+    
+        c_float_weibullA = ((c_float * 36)* 5)* 5
+        self.__weibull_A = c_float_weibullA()
+       
+        c_float_weibullK = ((c_float * 36)* 5)* 5
+        self.__weibull_K = c_float_weibullK()
+       
+        c_float_frequency = (c_float * 36)* 5
+        self.__frequency = c_float_frequency()
+    
+        self.__number_of_standard_heights = c_int()
+        self.__number_of_standard_roughnesses = c_int()
+    
+        c_float_parameters = c_float * 80
+        self.__param = c_float_parameters() 
+    
+    
+    def loadfromdata(self, data):
+        # nz0, nz, idd
+        self.__data = dict(data)
+        self.__meta = data["meta"]
+        self.__number_of_standard_roughnesses = c_int(int(data["dim"][0]))
+        self.__number_of_standard_heights = c_int(int(data["dim"][1]))
+        self.__ns = c_int(int(data["dim"][2]))
+        # z0st
+        for i in range(0, self.__number_of_standard_roughnesses.value):
+            self.__standard_roughness[i] = float(data["R"][i])
+        # zst
+        for i in range(0, self.__number_of_standard_heights.value):
+            self.__standard_height[i] = float(data["H"][i])
+    
+        for i in range(0, self.__number_of_standard_roughnesses.value):
+            for k in range(0, self.__ns.value):
+                self.__frequency[i][k] = float(data["f"][i][k])
+            for j in range(0, self.__number_of_standard_heights.value):	
+                for k in range(0, self.__ns.value):                                                                             
+                    self.__weibull_A[i][j][k] = float(data["A"][j+i*self.__number_of_standard_heights.value][k])
+                    self.__weibull_K[i][j][k] = float(data["k"][j+i*self.__number_of_standard_heights.value][k])
+    
+    
+    def resultsToData(self):#
+        self.__data["dim"][0] = np.squeeze(np.ctypeslib.as_array(self.__number_of_standard_roughnesses,shape=(1,1)))
+        self.__data["dim"][1] = np.squeeze(np.ctypeslib.as_array(self.__number_of_standard_heights,shape=(1,1)))
+        self.__data["dim"][2] = np.squeeze(np.ctypeslib.as_array(self.__ns,shape=(1,1)))
+        
+        self.__data["R"] = np.squeeze(np.ctypeslib.as_array(self.__standard_roughness))
+        self.__data["H"] = np.squeeze(np.ctypeslib.as_array(self.__standard_height))
+        
+        self.__data["f"] = np.squeeze(np.ctypeslib.as_array(self.__frequency))
+        self.__data["A"] = np.squeeze(np.ctypeslib.as_array(self.__weibull_A)).reshape(25,36)
+        self.__data["k"] = np.squeeze(np.ctypeslib.as_array(self.__weibull_K)).reshape(25,36)
+        return self.__data
+
+    def printResults(self):
+        print("\n")
+        print('z0st: [' + ',  '.join("%6.4f" % val for val in self.__standard_roughness) + ']')
+        print('zst: [' + ',  '.join("%2.0f" % val for val in self.__standard_height) + ']')
+        print(("count of sectors: %5i\n" % self.__ns.value))
+        for iz0 in range(0, len(self.__standard_roughness)):
+            print(("\n------ roughness type: %3i ------" % (iz0+1)))
+            for iz in range(0, len(self.__standard_height)):
+                if (iz == 0):
+                    print('sector frequencies: \n [' + ', '.join("%8.5f" % val for val in self.__frequency[iz0][0:self.__ns.value]) + ']')
+                print(("Weibul (A, K) of height type: %3i" % (iz+1)))
+                print('[' + ', '.join("%8.5f" % val for val in self.__weibull_A[iz0][iz][0:self.__ns.value]) + ']')
+                print('[' + ', '.join("%8.5f" % val for val in self.__weibull_K[iz0][iz][0:self.__ns.value]) + ']')
+                    
+    
+    def __getpar(self):    
+       xnoval = c_float() 
+       buff = (c_char * 180) * 80 
+       desc = buff()
+       #Get the default configuration 
+       the_DLL.deconf(self.__param, desc, byref(xnoval))
+       #desc8 = desc[7].value.strip().decode() 
+                                 	
+    def extrapolate(self, new_roughness, latitude):
+        
+        direction_offset = c_float(0.0) #This must be set to zero.
+    
+        #As with the roughness, one of the height classes is used for the extrapolation. For simplicity, use the first.
+        source_height_class = c_int(1)
+    
+        #The extrapolation is done from one roughness class. This variable specifies the index of the class to use.
+        source_roughness_class_index = c_int(self.__number_of_standard_roughnesses.value) 
+    
+        #If there are < 5 classes, then a new class can be added and used to receive the extrapolation results
+        #If there are already 5 classes, then the data in the fifth class is overwritten with the extrapolation results
+        extrapolated_roughness_class_index = c_int(min(5, self.__number_of_standard_roughnesses.value + 1)) 
+    
+        #Make a call to retrieve the default parameter values for the calculation. No need to change these if you are using legacy LIB files.
+        self.__getpar()            
+    
+        #Most of the arguments to this complex call are 'pure' inputs (the byref is necessary for other reasons)
+        #But the results of the calculation are written to some of the initialised input arguments (as outputs)
+        #Only the following arguments may or will change when you have invoked the method:
+            #z0st (will have the new extrapolated roughness length, either in nz0+1 or in 5
+            #nz0 (may be incremented if it is less than five as input
+            #weibull_A, weibull_K, frequency
+        the_DLL.CHANGEZ0ST_NC(byref(source_roughness_class_index), byref(extrapolated_roughness_class_index), byref(source_height_class), 
+                              byref(c_float(latitude)), byref(c_float(new_roughness)), self.__standard_roughness, self.__standard_height, 
+                              byref(self.__number_of_standard_roughnesses), byref(self.__number_of_standard_heights), 
+                              self.__weibull_A, self.__weibull_K, self.__frequency, byref(self.__ns), 
+                              byref(direction_offset), self.__param)
+################# END ATLAS CLASS DEFINITION FROM WASP
+
+def extrapolate_gwc(data, latitude):
+    ### drive ATLAS CLASS 
+    my_atlas = class_atlas()
+    my_atlas.loadfromdata(data)
+    my_atlas.extrapolate(1.5, latitude)
+    expol_data = my_atlas.resultsToData()
+    #my_atlas.printResults()
+    
+    return expol_data
+
 def export_gwc(data, ofile):
     """Exports the data object to a .gwc file (XML) following the version number FormatVersion="01.01.0002"""
     # functions
@@ -136,17 +273,16 @@ def export_gwc(data, ofile):
         - ReferenceHeightNumber
         - ReferenceHeight
         - CountOfSectors
-        - A [12 sectors]
-        - k [12 sectors]
-        - f [12 sectors]
+        - A [# sectors]
+        - k [# sectors]
+        - f [# sectors]
         """
         output = ""
         output += '<WindAtlasWeibullWindRose RoughnessLengthNumber="%d" RoughnessLength="%.3f" ReferenceHeightNumber="%d" ReferenceHeight="%.1f" FormatVersion="1.0" CountOfSectors="%d">\n' \
                                              %(RoughnessLengthNumber,   RoughnessLength,        ReferenceHeightNumber,     ReferenceHeight,                            CountOfSectors)
 
-        if ((len(f)+len(A)+len(k))/3 != CountOfSectors):
-            print "Error: Count of sectors does not correspond to length of A, k, and f data."
-        
+        #if ((len(f)+len(A)+len(k))/3 != CountOfSectors):
+            #print "Error: Count of sectors does not correspond to length of A, k, and f data."
         # WeibullWind entries
         SectorWidthDegrees = 360/CountOfSectors        
         
@@ -199,15 +335,12 @@ def export_gwc(data, ofile):
         f.write(header)
         f.write(meta)
         f.write(provenance)
-        for (r, rlength) in enumerate(data["R"]):
-            for (h, height) in enumerate(data["H"]):
-                f.write(writeWindRose(r+1, rlength, h+1, height, data["sect"], data["f"][r], data["A"][r*data["dim"][1]+h], data["k"][r*data["dim"][1]+h]))
+        for r in range(data["dim"][0]): 
+            for h in range(data["dim"][1]):
+                f.write(writeWindRose(r+1, data["R"][r], h+1, data["H"][h], data["sect"], data["f"][r], data["A"][r*data["dim"][1]+h], data["k"][r*data["dim"][1]+h]))
         f.write(closing)                                                                
         f.close() 
         
-    return 0
-
-def extrapolate_gwc(ifile, ofile, latitude):
     return 0
 
 ######## main program: call above defined functions  ################
@@ -223,10 +356,11 @@ for (i, su) in enumerate(sums):
 
 export_gwc(data_scaled, ofile)
 
-           
 if b_latitude:
-    print ("Note: You selected extrapolation of the gwc. This feature is not yet implemented.")
-    extrapolate_gwc(ifile, ofile, latitude)
+    print ("Note: You selected extrapolation of the gwc. This feature is not yet tested.\n")
+    data_scaled_exp = extrapolate_gwc(data_scaled, latitude)
+    export_gwc(data_scaled_exp, ofile + "_exp")
+    print "The extrapolated GWC is %s.gwc.\n" % (ofile + "_exp")
 
 print "\n############### End Scale LIB ###############\n"
 
