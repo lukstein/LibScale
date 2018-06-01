@@ -1,5 +1,8 @@
 # -*- coding: latin_1 -*-
 
+import warnings
+warnings.filterwarnings("ignore")
+
 import numpy as np
 import csv 
 import sys,imp,os,time,msvcrt
@@ -278,8 +281,8 @@ def export_gwc(data, ofile):
         output += '<WindAtlasWeibullWindRose RoughnessLengthNumber="%d" RoughnessLength="%.3f" ReferenceHeightNumber="%d" ReferenceHeight="%.1f" FormatVersion="1.0" CountOfSectors="%d">\n' \
                                              %(RoughnessLengthNumber,   RoughnessLength,        ReferenceHeightNumber,     ReferenceHeight,                            CountOfSectors)
 
-        if ((len(f)+len(A)+len(k))/3 != CountOfSectors):
-            print "Error: Count of sectors does not correspond to length of A, k, and f data."
+        #if ((len(f)+len(A)+len(k))/3 != CountOfSectors):
+            #print "Error: Count of sectors does not correspond to length of A, k, and f data."
         # WeibullWind entries
         SectorWidthDegrees = 360/CountOfSectors        
         
@@ -352,14 +355,12 @@ for (i, su) in enumerate(sums):
     data_scaled["f"][i] = data_scaled["f"][i]*100.0/su
 
 export_gwc(data_scaled, ofile)
-print "one"
-print np.shape(data_scaled["A"])
 
 if b_latitude:
-    print ("Note: You selected extrapolation of the gwc. This feature is not yet tested.")
+    print ("Note: You selected extrapolation of the gwc. This feature is not yet tested.\n")
     data_scaled_exp = extrapolate_gwc(data_scaled, latitude)
-    export_gwc(data_scaled_exp, ofile + "expol")
-
+    export_gwc(data_scaled_exp, ofile + "_exp")
+    print "The extrapolated GWC is %s.gwc.\n" % (ofile + "_exp")
 
 print "\n############### End Scale LIB ###############\n"
 
