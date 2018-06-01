@@ -356,7 +356,7 @@ print "one"
 print np.shape(data_scaled["A"])
 
 if b_latitude:
-    print ("Note: You selected extrapolation of the gwc. This feature is not yet implemented.")
+    print ("Note: You selected extrapolation of the gwc. This feature is not yet tested.")
     data_scaled_exp = extrapolate_gwc(data_scaled, latitude)
     export_gwc(data_scaled_exp, ofile + "expol")
 
