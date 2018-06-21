@@ -10,4 +10,4 @@ To display help: python scale.py -h
 Short Usage: python scale.py [-h] ifile percentage [-o OFILE] [-e Latitude]
 Usage: python scale.py [-h] ifile percentage [--OutputFilename OFILE] [--Extrapolate Latitude]
 
-(arguments is [ ] are optional)
+(arguments in [ ] are optional)
